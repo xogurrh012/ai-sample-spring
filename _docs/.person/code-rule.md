@@ -1,75 +1,68 @@
-# 코드 컨벤션
+# 코드 컨벤션 요약
 
-이 문서는 우리 프로젝트의 코딩 컨벤션을 간략하게 설명합니다.
+## 패키지 구조
 
-## 1. 패키지 구조
+도메인 기준 플랫 구조: `_core/`, `board/`, `user/` ...
 
-- 패키지는 도메인별로 구성됩니다: `com.example.demo.domainName`
-- 예: `com.example.demo.board`, `com.example.demo.user`
+각 도메인 폴더에 Entity, Controller, ApiController, Service, Repository, Request, Response 포함
 
-## 2. 이름 지정 규칙
+## 어노테이션 순서
 
-- **클래스**: 파스칼 케이스 (예: `BoardController`)
-- **메서드**: 카멜 케이스 (예: `getBoardList`)
-- **데이터베이스 테이블**: `_tb` 접미사를 붙인 스네이크 케이스 (예: `user_tb`, `board_tb`)
-- **데이터베이스 컬럼**: 스네이크 케이스 (예: `created_at`)
+| 레이어         | 순서                                                                        |
+| -------------- | --------------------------------------------------------------------------- |
+| Entity         | `@NoArgsConstructor` → `@Data` → `@Entity` → `@Table(name = "{도메인}_tb")` |
+| Service        | `@Transactional(readOnly = true)` → `@RequiredArgsConstructor` → `@Service` |
+| Controller     | `@RequiredArgsConstructor` → `@Controller`                                  |
+| RestController | `@RequiredArgsConstructor` → `@RestController` (별도 파일, `/api` 접두사)   |
 
-## 3. 계층형 아키텍처
+## Entity 규칙
 
-애플리케이션은 다음 계층으로 나뉩니다:
+- PK 타입: `Integer`, 전략: `GenerationType.IDENTITY`
+- `@Builder`는 생성자에 선언 (클래스 레벨 금지), 컬렉션 필드 제외
+- 모든 연관관계: `FetchType.LAZY`
+- 생성일: `@CreationTimestamp` + `LocalDateTime createdAt`
 
-- **컨트롤러**: 들어오는 HTTP 요청, 데이터 유효성 검사 및 응답 형식 지정을 처리합니다.
-- **서비스**: 핵심 비즈니스 로직을 포함합니다. 트랜잭션은 여기서 시작됩니다.
-- **리포지토리**: Spring Data JPA를 사용하여 데이터 영속성 및 접근을 담당합니다.
-- **엔티티**: 데이터 모델 및 데이터베이스 테이블 구조를 나타냅니다.
+## Service 규칙
 
-## 4. DTO (데이터 전송 객체) 명명 규칙
+- 클래스 레벨 `@Transactional(readOnly = true)`, 쓰기 메서드만 `@Transactional`
+- DTO는 Service에서 생성 → Controller로 Entity 직접 전달 금지
 
-- 요청 및 응답 DTO는 래퍼 클래스 내부에 정적 중첩 클래스로 정의됩니다.
-- 래퍼 클래스의 이름은 도메인 이름을 따릅니다 (예: `UserRequest`, `BoardResponse`).
-- 중첩 DTO 클래스 이름은 특정 기능이나 작업을 설명해야 합니다.
-- 예:
-  ```java
-  public class UserRequest {
-      @Data
-      public static class Login {
-          private String username;
-          private String password;
-      }
+## Controller 규칙
 
-      @Data
-      public static class Join {
-          private String username;
-          private String password;
-          private String email;
-      }
-  }
-  ```
+- SSR: `{Domain}Controller` → Mustache 템플릿 경로 반환
+- REST: `{Domain}ApiController` → `Resp.ok(body)` / `Resp.fail(status, msg)` 반환
+- SSR과 REST는 반드시 별도 파일로 분리
 
-## 5. JPA 엔티티 규칙
+## DTO 규칙
 
-- **지연 로딩**: 모든 엔티티 관계(`@ManyToOne`, `@OneToMany` 등)는 `fetch = FetchType.LAZY`로 구성되어야 합니다.
-- **OSIV**: N+1 쿼리 문제를 방지하기 위해 `spring.jpa.open-in-view` 속성은 `false`로 설정됩니다.
-- **기본 키**: 기본 키 필드는 `Integer` 타입이어야 합니다.
-- **ID 생성**: 자동 키 생성을 위해 `GenerationType.IDENTITY`를 사용합니다.
+- `{Domain}Request.java` — 내부 static class를 기능명으로 (`Save`, `Update`)
+- `{Domain}Response.java` — 내부 static class를 용도명으로 (`Detail`, `Items`)
+- 외부 클래스: 어노테이션 없음 / 내부 클래스: `@Data`
+- Entity → DTO 변환: 생성자 또는 정적 팩토리 메서드
 
-## 6. Lombok 사용법
+## 공통 응답
 
-- **`@Data`**: DTO 및 엔티티에 사용하여 게터, 세터, `toString` 등을 자동으로 생성합니다.
-- **`@NoArgsConstructor`**: JPA 엔티티에 인수 없는 생성자를 추가합니다.
-- **`@RequiredArgsConstructor`**: 컨트롤러 및 서비스에서 생성자 기반 의존성 주입을 위해 사용합니다.
-- **`@Builder`**: 테스트 또는 서비스 계층에서 객체 생성을 위한 빌더 패턴을 제공하기 위해 엔티티에 사용합니다.
+`_core/utils/Resp.java` — REST API는 반드시 `Resp<T>` 래퍼 사용
 
-## 7. 의존성 주입
+## 프론트 (JS) 규칙
 
-- 항상 `private final` 필드와 함께 생성자 주입을 사용합니다. 이는 불변성을 보장하고 의존성을 명시적으로 만듭니다.
-- 예 (서비스 내):
-  ```java
-  @RequiredArgsConstructor
-  @Service
-  public class BoardService {
-      private final BoardRepository boardRepository;
-      private final UserRepository userRepository;
-      // ...
-  }
-  ```
+- Ajax(fetch)는 `async` / `await` 사용
+- DOM 접근: `document.querySelector` 사용
+- POST 요청 기본: `<form>` 태그 + `name` 속성으로 제출 (페이지 이동 방식)
+- Ajax가 필요한 경우만 fetch 사용 (중복체크, 부분 갱신 등)
+
+## 네이밍
+
+| 대상        | 규칙               | 예시             |
+| ----------- | ------------------ | ---------------- |
+| 클래스/파일 | PascalCase         | `BoardService`   |
+| 메서드/변수 | camelCase          | `findAll`        |
+| 테이블      | snake_case + `_tb` | `board_tb`       |
+| 패키지      | lowercase          | `board`, `_core` |
+
+## 설정
+
+- OSIV: `false`
+- Fetch: 전부 `LAZY`
+- Batch: `default_batch_fetch_size=10`
+- 인증: `HttpSession`
