@@ -15,5 +15,19 @@ public class UserRequest {
         private String username;
         private String password;
         private String email;
+        private String zipcode;
+        private String address;
+        private String detailAddress;
+
+        public User toEntity() {
+            return User.builder()
+                    .username(username)
+                    .password(password)
+                    .email(email)
+                    .zipcode(zipcode)
+                    .address(address)
+                    .detailAddress(detailAddress)
+                    .build();
+        }
     }
 }
